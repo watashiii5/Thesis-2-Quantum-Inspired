@@ -17,6 +17,15 @@ function shouldCache(url) {
   return !NO_CACHE_PATTERNS.some(pattern => url.includes(pattern));
 }
 
+function isHttpUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting())
@@ -35,6 +44,9 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   
   const url = event.request.url;
+
+  // Ignore non-HTTP(S) requests (e.g., chrome-extension://) to avoid cache.put errors.
+  if (!isHttpUrl(url)) return;
   
   // For API/Supabase requests: ALWAYS go to network (no caching)
   if (!shouldCache(url)) {
@@ -48,7 +60,7 @@ self.addEventListener('fetch', (event) => {
       if (cached) return cached;
       return fetch(event.request).then((response) => {
         const responseClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone)).catch(() => {});
         return response;
       }).catch(() => caches.match('/'));
     })

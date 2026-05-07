@@ -45,6 +45,32 @@ export default function RLScheduler() {
   const qiaBestUrl = useMemo(() => `${apiUrl}/api/rl/qia/best`, [apiUrl])
   const qiaResetUrl = useMemo(() => `${apiUrl}/api/rl/qia/reset`, [apiUrl])
 
+  const getFriendlyFetchError = (rawMessage: string) => {
+    if (typeof window === 'undefined') return rawMessage
+
+    const isLocalFrontend = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    const isLocalBackend = apiUrl.includes('localhost') || apiUrl.includes('127.0.0.1')
+
+    if (rawMessage === 'Failed to fetch' && isLocalBackend && !isLocalFrontend) {
+      return 'Backend not reachable. This page is on Vercel (HTTPS) but the backend URL is still set to localhost. Set NEXT_PUBLIC_BACKEND_URL to your deployed backend HTTPS URL and redeploy.'
+    }
+
+    if (rawMessage === 'Failed to fetch' && isLocalBackend && isLocalFrontend) {
+      return 'Backend not reachable at http://localhost:8000. Start the FastAPI backend (or set NEXT_PUBLIC_BACKEND_URL).' 
+    }
+
+    return rawMessage
+  }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const isLocalFrontend = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    const isLocalBackend = apiUrl.includes('localhost') || apiUrl.includes('127.0.0.1')
+    if (!isLocalFrontend && isLocalBackend) {
+      setError('Backend URL is not configured for production. Set NEXT_PUBLIC_BACKEND_URL to your deployed backend HTTPS URL and redeploy.')
+    }
+  }, [apiUrl])
+
   useEffect(() => {
     targetCostRef.current = targetCost === '' ? null : targetCost
   }, [targetCost])
@@ -126,7 +152,7 @@ export default function RLScheduler() {
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
-      setError(message)
+      setError(getFriendlyFetchError(message))
     } finally {
       runningRef.current = false
       setIsRunning(false)
@@ -153,7 +179,7 @@ export default function RLScheduler() {
       await fetchQiaBest()
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Unexpected error'
-      setError(message)
+      setError(getFriendlyFetchError(message))
     }
   }
 
