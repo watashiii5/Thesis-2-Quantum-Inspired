@@ -194,6 +194,11 @@ class RLSchedulingEngine:
         self.qia_scheduler = qia_scheduler_fn
         self.training_history = []
 
+        # Track best observed result during training
+        self.best_reward: float = float('-inf')
+        self.best_schedule: Optional[Dict[str, Tuple[str, str]]] = None
+        self.best_violations: Dict[str, float] = {}
+
     def add_custom_rule(self, rule: CustomRule):
         """Register a custom scheduling rule."""
         self.environment.add_rule(rule)
@@ -214,6 +219,12 @@ class RLSchedulingEngine:
 
             # Evaluate against custom rules
             reward, violations = self.environment.evaluate_schedule(qia_schedule)
+
+            # Track best schedule so far (reward is higher=better)
+            if reward > self.best_reward:
+                self.best_reward = reward
+                self.best_schedule = qia_schedule
+                self.best_violations = violations
 
             # RL learns from this experience
             state = self._schedule_to_state(qia_schedule)
@@ -248,6 +259,36 @@ class RLSchedulingEngine:
             'episode': len(self.training_history),
             'avg_reward': avg_reward,
             'agent_stats': self.agent.get_stats()
+        }
+
+    def get_best_result(self) -> Dict[str, Any]:
+        """Return best schedule/cost observed so far."""
+        if self.best_schedule is None:
+            return {
+                'has_result': False,
+                'best_reward': None,
+                'best_cost': None,
+                'best_schedule': None,
+                'best_violations': {}
+            }
+
+        # In this RL module, reward is defined as negative penalty sum,
+        # so we can expose a human-readable cost as -reward.
+        best_cost = -float(self.best_reward)
+
+        schedule_out: Dict[str, Dict[str, Any]] = {}
+        for class_id, (room_id, slot) in self.best_schedule.items():
+            schedule_out[str(class_id)] = {
+                'room_id': room_id,
+                'time_slot': slot
+            }
+
+        return {
+            'has_result': True,
+            'best_reward': float(self.best_reward),
+            'best_cost': best_cost,
+            'best_schedule': schedule_out,
+            'best_violations': self.best_violations or {}
         }
 
     def get_learned_schedule(self, classes: List[Dict], rooms: List[Dict],
