@@ -41,6 +41,9 @@ from scheduler_v2 import run_enhanced_scheduler, generate_30min_slots, generate_
 # Load environment variables
 load_dotenv()
 
+# Import RL API
+from rl_api import rl_router, initialize_persistence
+
 # Create FastAPI app
 app = FastAPI(
     title="College Room Allocation API",
@@ -49,6 +52,9 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+# Include RL Router
+app.include_router(rl_router)
 
 
 # ========================
